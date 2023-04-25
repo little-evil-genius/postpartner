@@ -327,7 +327,7 @@ function postpartner_install(){
     $insert_array = array(
         'title'        => 'postpartner_character',
         'template'    => $db->escape_string('<div class="postpartner_search">
-        <div class="postpartner_search-name">{$username}{$ppid}
+        <div class="postpartner_search-name">{$username}
             <span class="postpartner_search-count">{$scene_count}</span>
         </div>
         <div class="postpartner_search-box">
