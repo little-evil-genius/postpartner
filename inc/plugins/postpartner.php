@@ -339,7 +339,7 @@ function postpartner_install(){
                 <div class="postpartner_search-shortdesc">{$shortdesc}</div>	
             </div>	
         </div>
-        <div class="postpartner_search-desc"><b>Inplayzeitraum: {$inplaydate}</b> • {$searchdesc}</div>	
+        <div class="postpartner_search-desc"><b>{$lang->postpartner_own_inplay} {$inplaydate}</b> • {$searchdesc}</div>	
         <div class="postpartner_search-options">
             {$options_links}
         </div>	
@@ -1589,9 +1589,9 @@ function postpartner_misc(){
                 }
             }
 
-            $postfacts_string = $postinglength.",".$postingfrequency.",".$postingperspective;
+            $postfacts_string = $postinglength.";".$postingfrequency.";".$postingperspective;
             // Zu einem Array umwandeln
-            $postfacts_array = explode(",", $postfacts_string);
+            $postfacts_array = explode(";", $postfacts_string);
             // Leere Elemente entfernen
             $postfacts_array = array_filter($postfacts_array);
             // In String umwandeln
