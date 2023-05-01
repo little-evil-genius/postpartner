@@ -12,6 +12,10 @@ Das Plugin ist kompatibel mit den klassischen Profilfeldern von MyBB und/oder de
 # Vorrausetzung
 - Der <a href="https://www.mybb.de/erweiterungen/18x/plugins-verschiedenes/enhanced-account-switcher/" target="_blank">Accountswitcher</a> von doylecc <b>muss</b> installiert sein.
 
+# Empfehlungen
+- <a href="https://github.com/MyBBStuff/MyAlerts" target="_blank">MyAlerts</a> von EuanT (ein Alert - jemand hat sich neu in die Suche eingetragen)
+- Eingebundene Icons von Fontawesome (kann man sonst auch in der Sprachdatei ändern)
+
 # Datenbank-Änderungen
 hinzugefügte Tabelle:
 - PRÄFIX_postpartners
@@ -63,10 +67,6 @@ Alle Templates wurden ohne Tabellen-Struktur gecodet. Das Layout wurde auf ein M
 
 # Neues CSS - postpartner.css
 Es wird automatisch in jedes bestehende und neue Design hinzugefügt. Man sollte es einfach einmal abspeichern, bevor man dies im Board mit der Untersuchungsfunktion bearbeiten will, da es dann passieren kann, dass das CSS für dieses Plugin in einen anderen Stylesheet gerutscht ist, obwohl es im ACP richtig ist.
-
-# Empfehlungen
-- <a href="https://github.com/MyBBStuff/MyAlerts" target="_blank">MyAlerts</a> von EuanT (ein Alert - jemand hat sich neu in die Suche eingetragen)
-- Eingebundene Icons von Fontawesome (kann man sonst auch in der Sprachdatei ändern)
 
 # Links
 - euerforum.de/misc.php?action=postpartner
