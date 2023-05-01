@@ -9,6 +9,9 @@ Außerdem kann die Funktion von einem Postpartnerwürfel vom Team aktiviert werd
 <b>HINWEIS:</b><br>
 Das Plugin ist kompatibel mit den klassischen Profilfeldern von MyBB und/oder dem <a href="https://github.com/katjalennartz/application_ucp">Steckbrief-Plugin von Risuena</a>. Genauso kann auch das Listen-Menü angezeigt werden, wenn man das <a href="https://github.com/ItsSparksFly/mybb-lists">Automatische Listen-Plugin von sparks fly</a> verwendet. Beides muss nur vorher eingestellt werden.
 
+# Vorrausetzung
+- Der <a href="https://www.mybb.de/erweiterungen/18x/plugins-verschiedenes/enhanced-account-switcher/" target="_blank">Accountswitcher</a> von doylecc <b>muss</b> installiert sein.
+
 # Datenbank-Änderungen
 hinzugefügte Tabelle:
 - PRÄFIX_postpartners
