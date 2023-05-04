@@ -72,9 +72,9 @@ Es wird automatisch in jedes bestehende und neue Design hinzugefügt. Man sollte
 - euerforum.de/misc.php?action=postpartner
 
 # Weiter Profilfelder
-In dem Tpl postpartner_character, wo die einzelnen Szenenangebote definiert werden, können auch weitere Profilfelder/Steckbrieffelder ausgelesen werden. Dafür benötigt man nur die Variable: $searchs['X']<br>
-<b>Profilfeld:</b> $searchs['fidX']<br>
-<b>Steckbrieffeld:</b> $searchs['Identifikator']
+In dem Tpl postpartner_character, wo die einzelnen Szenenangebote definiert werden, können auch weitere Profilfelder/Steckbrieffelder ausgelesen werden. Dafür benötigt man nur die Variable: {$searchs['X']}<br>
+<b>Profilfeld:</b> {$searchs['fidX']}<br>
+<b>Steckbrieffeld:</b> {$searchs['Identifikator']}
 
 # Demo
 <img src="https://www.bilder-hochladen.net/files/big/m4bn-hd-5fc5.png">
