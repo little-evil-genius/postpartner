@@ -77,9 +77,9 @@ In dem Tpl postpartner_character, wo die einzelnen Szenenangebote definiert werd
 <b>Steckbrieffeld:</b> {$searchs['Identifikator']}
 
 # Demo
-<img src="https://www.bilder-hochladen.net/files/big/m4bn-hd-5fc5.png">
-<img src="https://www.bilder-hochladen.net/files/big/m4bn-ha-b983.png">
-<img src="https://www.bilder-hochladen.net/files/m4bn-h9-5eee.png">
-<img src="https://www.bilder-hochladen.net/files/big/m4bn-hc-bfcb.png">
-<img src="https://www.bilder-hochladen.net/files/m4bn-hb-a7de.png">
-<img src="https://www.bilder-hochladen.net/files/m4bn-h8-678b.png">
+<img src="https://stormborn.at/plugins/postpartnersuche_uebersicht.png">
+<img src="https://stormborn.at/plugins/postpartnersuche_eigeneSuche.png">
+<img src="https://stormborn.at/plugins/postpartnersuche_alert.png">
+<img src="https://stormborn.at/plugins/postpartnersuche_ablehnen.png">
+<img src="https://stormborn.at/plugins/postpartnersuche_pm.png">
+<img src="https://stormborn.at/plugins/postpartnersuche_alerts.png">
