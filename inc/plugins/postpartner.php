@@ -28,7 +28,7 @@ function postpartner_info(){
 		"website"	=> "https://github.com/little-evil-genius/postpartner",
 		"author"	=> "little.evil.genius",
 		"authorsite"	=> "https://storming-gates.de/member.php?action=profile&uid=1712",
-		"version"	=> "1.0",
+		"version"	=> "1.1",
 		"compatibility" => "18*"
 	);
 }
@@ -1964,14 +1964,24 @@ function postpartner_misc(){
             //to: wer muss die anfrage bestätigen
             "fromid" => $searchUser,
             //from: wer hat die anfrage gestellt
-            "toid" => $interestedUser
+            "toid" => $interestedUser,
+            "icon" => "",
+            "do" => "",
+            "pmid" => "",
+        );
+
+        $pm_change['options'] = array(
+            'signature' => '0',
+            'savecopy' => '0',
+            'disablesmilies' => '0',
+            'readreceipt' => '0',
         );
         // $pmhandler->admin_override = true;
-        $pmhandler->set_data ($pm_change);
-        if (!$pmhandler->validate_pm ())
+        $pmhandler->set_data($pm_change);
+        if (!$pmhandler->validate_pm())
             return false;
         else {
-            $pmhandler->insert_pm ();
+            $pmhandler->insert_pm();
         }
 
         // Alert löschen
