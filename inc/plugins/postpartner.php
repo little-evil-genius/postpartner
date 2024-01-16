@@ -28,7 +28,7 @@ function postpartner_info(){
 		"website"	=> "https://github.com/little-evil-genius/postpartner",
 		"author"	=> "little.evil.genius",
 		"authorsite"	=> "https://storming-gates.de/member.php?action=profile&uid=1712",
-		"version"	=> "1.1",
+		"version"	=> "1.1.1",
 		"compatibility" => "18*"
 	);
 }
@@ -2127,7 +2127,11 @@ function postpartner_get_allchars($user_id) {
 	global $db, $cache, $mybb, $lang, $templates, $theme, $header, $headerinclude, $footer;
 
 	//für den fall nicht mit hauptaccount online
-	$as_uid = intval($mybb->user['as_uid']);
+	if (isset($mybb->user['as_uid'])) {
+        $as_uid = intval($mybb->user['as_uid']);
+    } else {
+        $as_uid = 0;
+    }
 
 	$charas = array();
 	if ($as_uid == 0) {
