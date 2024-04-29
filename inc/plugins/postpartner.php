@@ -2127,8 +2127,8 @@ function postpartner_get_allchars($user_id) {
 	global $db, $cache, $mybb, $lang, $templates, $theme, $header, $headerinclude, $footer;
 
 	//für den fall nicht mit hauptaccount online
-	if (isset($mybb->user['as_uid'])) {
-        $as_uid = intval($mybb->user['as_uid']);
+	if (isset(get_user($user_id)['as_uid'])) {
+        $as_uid = intval(get_user($user_id)['as_uid']);
     } else {
         $as_uid = 0;
     }
