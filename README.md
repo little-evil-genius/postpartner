@@ -10,6 +10,7 @@ Außerdem kann die Funktion von einem Postpartnerwürfel vom Team aktiviert werd
 Das Plugin ist kompatibel mit den klassischen Profilfeldern von MyBB und/oder dem <a href="https://github.com/katjalennartz/application_ucp">Steckbrief-Plugin von Risuena</a>. Genauso kann auch das Listen-Menü angezeigt werden, wenn man das <a href="https://github.com/ItsSparksFly/mybb-lists">Automatische Listen-Plugin von sparks fly</a> verwendet. Beides muss nur vorher eingestellt werden.
 
 # Vorrausetzung
+- Das ACP Modul <a href="https://github.com/little-evil-genius/rpgstuff_modul" target="_blank">RPG Stuff</a> <b>muss</b> vorhanden sein.
 - Der <a href="https://www.mybb.de/erweiterungen/18x/plugins-verschiedenes/enhanced-account-switcher/" target="_blank">Accountswitcher</a> von doylecc <b>muss</b> installiert sein.
 
 # Empfehlungen
@@ -67,6 +68,9 @@ Alle Templates wurden ohne Tabellen-Struktur gecodet. Das Layout wurde auf ein M
 
 # Neues CSS - postpartner.css
 Es wird automatisch in jedes bestehende und neue Design hinzugefügt. Man sollte es einfach einmal abspeichern, bevor man dies im Board mit der Untersuchungsfunktion bearbeiten will, da es dann passieren kann, dass das CSS für dieses Plugin in einen anderen Stylesheet gerutscht ist, obwohl es im ACP richtig ist.
+
+# Benutzergruppen-Berechtigungen setzen
+Damit alle Admin-Accounts Zugriff auf die Updates und das hinzufügen vom Stylesheet zum Master Style haben im ACP, müssen unter dem Reiter Benutzer & Gruppen » Administrator-Berechtigungen » Benutzergruppen-Berechtigungen die Berechtigungen einmal angepasst werden. Die Berechtigungen dafür befinden sich im Tab 'RPG Erweiterungen'. 
 
 # Links
 - euerforum.de/misc.php?action=postpartner
