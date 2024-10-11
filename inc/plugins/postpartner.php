@@ -10,6 +10,8 @@ if(!defined("IN_MYBB"))
 // HOOKS
 $plugins->add_hook('admin_config_settings_change', 'postpartner_settings_change');
 $plugins->add_hook('admin_settings_print_peekers', 'postpartner_settings_peek');
+$plugins->add_hook('admin_rpgstuff_update_stylesheet', 'postpartner_admin_update_stylesheet');
+$plugins->add_hook('admin_rpgstuff_update_plugin', 'postpartner_admin_update_plugin');
 $plugins->add_hook("misc_start", "postpartner_misc");
 $plugins->add_hook("global_intermediate", "postpartner_global");
 $plugins->add_hook("admin_user_users_delete_commit_end", "postpartner_user_delete");
@@ -28,7 +30,7 @@ function postpartner_info(){
 		"website"	=> "https://github.com/little-evil-genius/postpartner",
 		"author"	=> "little.evil.genius",
 		"authorsite"	=> "https://storming-gates.de/member.php?action=profile&uid=1712",
-		"version"	=> "1.1.1",
+		"version"	=> "1.2",
 		"compatibility" => "18*"
 	);
 }
@@ -38,161 +40,27 @@ function postpartner_install(){
 
     global $db, $cache, $mybb;
 
-    // Datenbank-Tabelle Postpartners erstellen
-	$db->query("CREATE TABLE ".TABLE_PREFIX."postpartners(
-        `ppid` int(10) NOT NULL AUTO_INCREMENT,
-        `uid` int(11) NOT NULL,
-		`max_count` int(10) NOT NULL,
-		`res_count` int(10) NOT NULL,
-		`inplaydate` VARCHAR(500) NOT NULL,
-		`searchdesc` VARCHAR(2500) NOT NULL,
-        PRIMARY KEY(`ppid`),
-        KEY `ppid` (`ppid`)
-        )
-        ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci AUTO_INCREMENT=1    
-    ");
+    // RPG Stuff Modul muss vorhanden sein
+    if (!file_exists(MYBB_ADMIN_DIR."/modules/rpgstuff/module_meta.php")) {
+		flash_message("Das ACP Modul <a href=\"https://github.com/little-evil-genius/rpgstuff_modul\" target=\"_blank\">\"RPG Stuff\"</a> muss vorhanden sein!", 'error');
+		admin_redirect('index.php?module=config-plugins');
+	}
 
-    // Datenbank-Tabelle Postpartners Alerts erstellen
-	$db->query("CREATE TABLE ".TABLE_PREFIX."postpartners_alerts(
-        `paid` int(10) NOT NULL AUTO_INCREMENT,
-        `ppid` int(11) NOT NULL,
-		`searchUser` int(10) NOT NULL,
-		`interestedUser` int(10) NOT NULL,
-        PRIMARY KEY(`paid`),
-        KEY `paid` (`paid`)
-        )
-        ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci AUTO_INCREMENT=1    
-    ");
+    // DATENBANKEN ERSTELLEN
+    postpartner_database();
 
     // EINSTELLUNGEN HINZUFÜGEN
+    $maxdisporder = $db->fetch_field($db->query("SELECT MAX(disporder) FROM ".TABLE_PREFIX."settinggroups"), "MAX(disporder)");
     $setting_group = array(
         'name'          => 'postpartner',
         'title'         => 'Postpartnersuche',
         'description'   => 'Einstellungen für das Postpartnersuche',
-        'disporder'     => 1,
+        'disporder'     => $maxdisporder+1,
         'isdefault'     => 0
     );
-        
-    $gid = $db->insert_query("settinggroups", $setting_group); 
-        
-    $setting_array = array(
-        'postpartner_allow_groups' => array(
-            'title' => 'Erlaubte Gruppen',
-			'description' => 'Welche Gruppen dürfen neue Postpartnersuche veröffentlichen?',
-			'optionscode' => 'groupselect',
-			'value' => '4', // Default
-			'disporder' => 1
-        ),
-		'postpartner_guest' => array(
-			'title' => 'Gästeberechtigung',
-			'description' => 'Dürfen Gäste die Postpartnersuche sehen?',
-			'optionscode' => 'yesno',
-			'value' => '2', // Default
-			'disporder' => 2
-		),
-		'postpartner_guest_avatar' => array(
-			'title' => 'Avatar verstecken',
-			'description' => 'Dürfen Gäste die Avatare der Accounts sehen?',
-			'optionscode' => 'yesno',
-			'value' => '0', // Default
-			'disporder' => 3
-		),
-		'postpartner_defaultavatar' => array(
-			'title' => 'Standard-Avatar',
-			'description' => 'Wie heißt die Bilddatei, für die Standard-Avatare? Damit der Avatar für jedes Design angepasst wird, sollte der Namen in allen Designs gleich sein.',
-			'optionscode' => 'text',
-			'value' => 'default_avatar.png', // Default
-			'disporder' => 4
-		),
-		'postpartner_profilfeldsystem' => array(
-			'title' => 'Profilfeldsystem',
-			'description' => 'Werden klassische Profilfelder oder Steckbrieffelder von Risuenas Steckbrief-Plugin verwendet? Es kann auch ausgewählt werden, dass beides verwendet wird.',
-			'optionscode' => 'select\n0=klassische Profilfelder\n1=Steckbrief-Plugin\n2=beide Varianten',
-			'value' => '0', // Default
-			'disporder' => 5
-		),
-		'postpartner_shortdesc' => array(
-			'title' => 'Kurzbeschreibung',
-			'description' => 'Wie lautet die FID/Identifikator von dem Profilfeld/Steckbrieffeld der Kurzbeschreibung? Wenn nicht gewünscht, dann einfach frei lassen.<br>
-            <b>Hinweis:</b> Bei klassischen Profilfeldern eine Zahl eintragen. Bei dem Steckbrief-Plugin von Risuena muss der Name/Identifikator des Felds eingetragen werden.',
-			'optionscode' => 'text',
-			'value' => '2', // Default
-			'disporder' => 6
-		),
-		'postpartner_postinglength' => array(
-			'title' => 'Postinglänge',
-			'description' => 'Wie lautet die FID/Identifikator von dem Profilfeld/Steckbrieffeld der Postinglänge? Wenn nicht gewünscht, dann einfach frei lassen.<br>
-            <b>Hinweis:</b> Bei klassischen Profilfeldern eine Zahl eintragen. Bei dem Steckbrief-Plugin von Risuena muss der Name/Identifikator des Felds eingetragen werden.',
-			'optionscode' => 'text',
-			'value' => '5', // Default
-			'disporder' => 7
-		),
-		'postpartner_postingfrequency' => array(
-			'title' => 'Postingfrequenz',
-			'description' => 'Wie lautet die FID/Identifikator von dem Profilfeld/Steckbrieffeld der Postingfrequenz? Wenn nicht gewünscht, dann einfach frei lassen.<br>
-            <b>Hinweis:</b> Bei klassischen Profilfeldern eine Zahl eintragen. Bei dem Steckbrief-Plugin von Risuena muss der Name/Identifikator des Felds eingetragen werden.',
-			'optionscode' => 'text',
-			'value' => '6', // Default
-			'disporder' => 8
-		),
-		'postpartner_postingperspective' => array(
-			'title' => 'Postperspektive',
-			'description' => 'Wie lautet die FID/Identifikator von dem Profilfeld/Steckbrieffeld der Postperspektive? Wenn nicht gewünscht, dann einfach frei lassen.<br>
-            <b>Hinweis:</b> Bei klassischen Profilfeldern eine Zahl eintragen. Bei dem Steckbrief-Plugin von Risuena muss der Name/Identifikator des Felds eingetragen werden.',
-			'optionscode' => 'text',
-			'value' => '24', // Default
-			'disporder' => 9
-		),
-		'postpartner_filteroption' => array(
-			'title' => 'Filtermöglichkeit',
-			'description' => 'Sollen die Postangebote filterbar sein nach den Profilfeldern Postinglänge, Postingfrequenz und Postperspektive?<br>
-            <b>Hinweis:</b> Die Filtermöglichkeit wird nur angezeigt, wenn das jeweilige Feld ein feste Auswahlmöglichkeiten bietet.',
-			'optionscode' => 'yesno',
-			'value' => '1', // Default
-			'disporder' => 10
-		),
-		'postpartner_dice' => array(
-			'title' => 'Postpartnerwürfel',
-			'description' => 'Sollen User die Möglichkeit haben sich aus den Angeboten eine zufällige Ausgabe anzuzeigen? Eine Art Würfel.',
-			'optionscode' => 'yesno',
-			'value' => '1', // Default
-			'disporder' => 11
-		),
-        'postpartner_lists' => array(
-            'title' => 'Listen PHP',
-            'description' => 'Wie heißt die Hauptseite der Listen-Seite? Dies dient zur Ergänzung der Navigation. Falls nicht gewünscht einfach leer lassen.',
-            'optionscode' => 'text',
-            'value' => 'lists.php', // Default
-            'disporder' => 12
-        ),
-		'postpartner_lists_type' => array(
-			'title' => 'Listen Menü',
-			'description' => 'Soll über die Variable {$lists_menu} das Menü der Listen aufgerufen werden?<br>Wenn ja, muss noch angegeben werden, ob eine eigene PHP-Datei oder das Automatische Listen-Plugin von sparks fly genutzt? ',
-			'optionscode' => 'select\n0=eigene Listen/PHP-Datei\n1=Automatische Listen-Plugin\n2=keine Menü-Anzeige',
-			'value' => '2', // Default
-			'disporder' => 13
-		),
-        'postpartner_lists_menu' => array(
-            'title' => 'Listen Menü Template',
-            'description' => 'Damit das Listen Menü richtig angezeigt werden kann, muss hier einmal der Name von dem Tpl von dem Listen-Menü angegeben werden.',
-            'optionscode' => 'text',
-            'value' => 'lists_nav', // Default
-            'disporder' => 14
-        ),
-        'postpartner_categorie' => array(
-            'title' => 'Inplay-Kategorie',
-            'description' => 'Wähle hier die Inplaykategorie aus.',
-            'optionscode' => 'forumselectsingle',
-            'value' => '10', // Default
-            'disporder' => 15
-        ),
-    );
-        
-    foreach($setting_array as $name => $setting){
-        $setting['name'] = $name;
-        $setting['gid']  = $gid;
-        $db->insert_query('settings', $setting);  
-    }
+    $db->insert_query("settinggroups", $setting_group); 
+
+    postpartner_settings();
     rebuild_settings();
 
 	// Task hinzufügen
@@ -211,7 +79,6 @@ function postpartner_install(){
         'locked' => 0
     );
     $db->insert_query('tasks', $postpartnerTask);
-
     $cache->update_tasks(); 
 
     // TEMPLATES ERSTELLEN
@@ -221,666 +88,20 @@ function postpartner_install(){
         "title" => $db->escape_string("Postpartnersuche"),
     );
     $db->insert_query("templategroups", $templategroup);
-
-    $insert_array = array(
-        'title'        => 'postpartner',
-        'template'    => $db->escape_string('<html>
-        <head>
-           <title>{$mybb->settings[\'bbname\']} - {$lang->postpartner_navigation}</title>
-           {$headerinclude}
-        </head>
-        <body>
-           {$header}
-           <table width="100%" border="0" align="center">
-              <tr>
-                 <td valign="top">
-                    <div id="postpartner_lists">
-                       {$lists_menu}
-                       <div class="postpartner_lists-body">
-                          <div class="postpartner_lists-headline">{$lang->postpartner_navigation}</div>
-                          <div class="postpartner_lists-desc">{$lang->postpartner_overview_desc}</div>
-                          {$postpartner_add}
-                          {$postpartner_ownsearch}
-                          <div class="postpartner_lists-headline">
-							  {$counter_searchs}
-                             {$postpartner_dice}
-                           </div>
-                           {$postpartner_dice_bit}
-                           {$postpartner_filter}
-                          {$postpartner_bit}	 
-                           {$postpartner_none}
-                       </div>
-                    </div>
-                 </td>
-              </tr>
-           </table>
-           {$footer}
-        </body>
-     </html>'),
-        'sid'        => '-2',
-        'version'    => '',
-        'dateline'    => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    $insert_array = array(
-        'title'        => 'postpartner_add',
-        'template'    => $db->escape_string('<form method="post" action="misc.php?action=postpartner_add" id="postpartner_add">
-        <div class="postpartner_add-headline">{$lang->postpartner_add_headline}</div>
-        <div class="postpartner_add_table">
-          <div class="postpartner_add_tableLeft">
-             <div class="postpartner_add_tableCall">
-                <div class="postpartner_add_tableCell">
-                   <b>{$lang->postpartner_add_character}</b><br>
-                   <span class="smalltext">{$lang->postpartner_add_character_desc}</span>
-                </div>
-                <div class="postpartner_add_tableCell">
-                   <select name="character">
-                      <option value="">{$lang->postpartner_add_character_select}</option>
-                      {$accounts_select}
-                   </select>
-                </div>
-             </div>
-              
-             <div class="postpartner_add_tableCall">
-                <div class="postpartner_add_tableCell">
-                   <b>{$lang->postpartner_add_maxcount}</b><br>
-                   <span class="smalltext">{$lang->postpartner_add_maxcount_desc}</span>
-                </div>
-                <div class="postpartner_add_tableCell">
-                   <input type="text" class="textbox" name="max_count" id="max_count" placeholder="4"> <br> 
-                    <span class="smalltext">
-                        <strong>{$lang->postpartner_add_maxcount_check}</strong> 
-                        <input type="checkbox" class="checkbox" name="max_count" id="max_count" value="0"  style="vertical-align: sub;"> 
-                    </span>
-                </div>
-             </div>
-              
-             <div class="postpartner_add_tableCall">
-                <div class="postpartner_add_tableCell">
-                   <b>{$lang->postpartner_add_inplay}</b><br>
-                   <span class="smalltext">{$lang->postpartner_add_inplay_desc}</span>
-                </div>
-                <div class="postpartner_add_tableCell">
-                    <input type="text" class="textbox" name="inplaydate" id="inplaydate" placeholder="{$lang->postpartner_add_inplay_value}" required="">  
-                </div>
-             </div>
-              
-          </div>
-          <div class="postpartner_add_tableRight">
-             <b>{$lang->postpartner_add_searchdesc}</b><br>
-             <span class="smalltext">{$lang->postpartner_add_searchdesc_desc}</span><br>
-             <textarea class="textarea" name="searchdesc" id="searchdesc" rows="5" cols="30" style="width: 95%"></textarea>
-          </div>
-       </div>
-       <div style="text-align: center;margin-bottom: 10px;">
-          <input type="hidden" name="action" value="postpartner_add">
-          <input type="submit" value="{$lang->postpartner_add_button}" name="postpartner_add" class="button">    
-       </div>
-       </form>'),
-        'sid'        => '-2',
-        'version'    => '',
-        'dateline'    => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    $insert_array = array(
-        'title'        => 'postpartner_character',
-        'template'    => $db->escape_string('<div class="postpartner_search">
-        <div class="postpartner_search-name">{$username}
-            <span class="postpartner_search-count">{$scene_count}</span>
-        </div>
-        <div class="postpartner_search-box">
-            <div class="postpartner_search-avatar">
-                <img src="{$avatar_url}">
-            </div>
-            <div class="postpartner_search-infos">
-                <div class="postpartner_search-postfacts">{$postfacts}</div>	
-                <div class="postpartner_search-shortdesc">{$shortdesc}</div>	
-            </div>	
-        </div>
-        <div class="postpartner_search-desc"><b>{$lang->postpartner_own_inplay} {$inplaydate}</b> • {$searchdesc}</div>	
-        <div class="postpartner_search-options">
-            {$options_links}
-        </div>	
-        </div>'),
-        'sid'        => '-2',
-        'version'    => '',
-        'dateline'    => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    $insert_array = array(
-        'title'        => 'postpartner_dice',
-        'template'    => $db->escape_string('<form id="chara_new" method="get" action="misc.php">
-        <input type="hidden" name="action" value="postpartner" />
-        <input type="hidden" name="randomDice" value="random" />
-        <button type="submit">
-            {$lang->postpartner_dice}
-        </button>	
-        </form>'),
-        'sid'        => '-2',
-        'version'    => '',
-        'dateline'    => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    $insert_array = array(
-        'title'        => 'postpartner_dice_bit',
-        'template'    => $db->escape_string('<div class="postpartner-dice">
-        <div class="postpartner-dice-headline">{$lang->postpartner_dice_headline}</div>
-        <div class="postpartner-dice-username">{$charactername}</div>
-        <div class="postpartner-dice-options">
-            <a href="misc.php?action=postpartner&amp;interestedUser={$dice[\'ppid\']}">{$postpartner_options_interested}</a>
-            <a href="private.php?action=send&amp;uid={$dice[\'uid\']}">{$lang->postpartner_options_pn}</a>
-        </div>
-        </div>'),
-        'sid'        => '-2',
-        'version'    => '',
-        'dateline'    => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    $insert_array = array(
-        'title' => 'postpartner_edit',
-        'template' => $db->escape_string('<html>
-        <head>
-      <title>{$mybb->settings[\'bbname\']} - {$postpartner_navigation_edit}</title>
-      {$headerinclude}
-      </head>
-      <body>
-      {$header}
-      <table width="100%" border="0" align="center">
-         <tr>
-            <td valign="top">
-               <div id="postpartner_lists">
-                  {$lists_menu}
-                  <div class="postpartner_lists-body">
-                     <div class="postpartner_lists-headline">{$lang->postpartner_edit_headline}</div>
-                       <form id="edit_postpartner" method="post" action="misc.php?action=postpartner_edit_do&ppid={$ppid}">
-                       <div class="postpartner_edit_table">
-      <div class="postpartner_edit_tableLeft">
-         <div class="postpartner_edit_tableCall">
-            <div class="postpartner_edit_tableCell">
-               <b>{$lang->postpartner_add_character}</b>
-            </div>
-            <div class="postpartner_edit_tableCell">
-               <div class="postpartner_edit_character">{$charactername}</div>
-            </div>
-         </div>
-         <div class="postpartner_edit_tableCall">
-            <div class="postpartner_edit_tableCell">
-               <b>{$lang->postpartner_add_maxcount}</b><br>
-               <span class="smalltext">{$lang->postpartner_add_maxcount_desc}<br>{$scene_count}
-                   </span>
-            </div>
-            <div class="postpartner_edit_tableCell">
-               <input type="text" class="textbox" name="max_count" id="max_count" value="{$max_count}"> <br>
-                <span class="smalltext">
-                    <strong>{$lang->postpartner_add_maxcount_check}</strong>
-                    <input type="checkbox" class="checkbox" name="max_count" id="max_count" value="0" {$radio_checked} style="vertical-align: sub;">
-                </span>
-            </div>
-         </div>
-         <div class="postpartner_edit_tableCall">
-            <div class="postpartner_edit_tableCell">
-               <b>{$lang->postpartner_add_inplay}</b><br>
-               <span class="smalltext">{$lang->postpartner_add_inplay_desc}</span>
-            </div>
-            <div class="postpartner_edit_tableCell">
-                <input type="text" class="textbox" name="inplaydate" id="inplaydate" placeholder="{$lang->postpartner_add_inplay_value}" value="{$inplaydate}" required="">
-            </div>
-         </div>
-      </div>
-      <div class="postpartner_edit_tableRight">
-         <b>{$lang->postpartner_add_searchdesc}</b><br>
-         <span class="smalltext">{$lang->postpartner_add_searchdesc_desc}</span><br>
-         <textarea class="textarea" name="searchdesc" id="searchdesc" rows="5" cols="30" style="width: 95%">{$searchdesc}</textarea>
-      </div>
-   </div>
-   <div style="text-align: center;margin-bottom: 10px;">
-                                 <input type="hidden" name="ppid" id="ppid" value="{$ppid}" class="textbox" />
-                                 <input type="hidden" name="old_max" id="old_max" value="{$max_count}" class="textbox" />
-                                 <input type="hidden" name="old_res" id="old_res" value="{$edit[\'res_count\']}" class="textbox" />
-                                 <input type="hidden" name="uid" id="uid" value="{$edit[\'uid\']}" class="textbox" />
-                                 <input type="submit" value="{$lang->postpartner_edit_button}" class="button" />
-   </div>
-
-   </form>
-                  </div>
-               </div>
-            </td>
-         </tr>
-      </table>
-      {$footer}
-   </body>
-
-   </html>'),
-        'sid' => '-2',
-        'version' => '',
-        'dateline' => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    $insert_array = array(
-        'title'        => 'postpartner_filter',
-        'template'    => $db->escape_string('<form id="chara_new" method="get" action="misc.php">
-        <input type="hidden" name="action" value="postpartner" />
-        <div class="postpartner-filter">
-           <div class="postpartner-filter-headline">{$lang->postpartner_filter}</div>
-           <div class="postpartner-filteroptions">
-               {$filter_postinglength}
-               {$filter_postingperspective}
-               {$filter_postingfrequency}
-           </div>
-        </div>
-        <center>
-           <input type="submit" name="search_filter" value="{$lang->postpartner_filter_button}" id="submit" class="button">
-        </center>
-     </form>'),
-        'sid'        => '-2',
-        'version'    => '',
-        'dateline'    => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    $insert_array = array(
-        'title'        => 'postpartner_header',
-        'template'    => $db->escape_string('<div class="postpartner_alert">
-        {$postpartner_headertext}<br>
-        <a href="misc.php?action=postpartner&acceptRequest={$ppid}">
-            {$lang->postpartner_header_accept}
-        </a>
-        &nbsp;
-        {$rejectlink}
-        </div>'),
-        'sid'        => '-2',
-        'version'    => '',
-        'dateline'    => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    $insert_array = array(
-        'title'        => 'postpartner_header_rejectRequest',
-        'template'    => $db->escape_string('<form action="misc.php?action=rejectRequest&paid={$paid}" method="post">   	
-        <input type="hidden" name="paid" id="paid" value="{$paid}"/>  
-        <input type="hidden" name="saveurl" value="{$saveurl}" />
-        <div class="header_rejectRequest">
-            <div class="thead">{$lang->postpartner_header_reject_headline}</div>
-            <div class="postpartner_add_tableCall">
-        <div class="postpartner_add_tableCell">
-            <b>{$lang->postpartner_header_reject_pm}</b><br>
-            <span class="smalltext">{$lang->postpartner_header_reject_pm_desc}</span>    
-        </div>
-              
-        <div class="postpartner_add_tableCell">
-            <textarea name="rejectreason" id="rejectreason"></textarea>
-        </div>    
-        </div>
-            <center>
-            <input type="submit" class="button" value="{$lang->postpartner_header_reject_button}">
-            </center>
-        </div>
-        </form>'),
-        'sid'        => '-2',
-        'version'    => '',
-        'dateline'    => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    $insert_array = array(
-        'title'        => 'postpartner_none',
-        'template'    => $db->escape_string('<div style="text-align:center;margin:10px auto;">{$lang_postpartner_none}</div>'),
-        'sid'        => '-2',
-        'version'    => '',
-        'dateline'    => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    $insert_array = array(
-        'title'        => 'postpartner_own',
-        'template'    => $db->escape_string('<div class="postpartner_own-bit">
-        <div class="postpartner_own-name">{$username}
-            <span class="postpartner_own-count">{$scene_count}</span>
-        </div>
-        <div class="postpartner_own-search"><b>{$lang->postpartner_own_inplay} {$inplaydate}</b> • {$searchdesc}</div>
-        <div class="postpartner_own-options">
-            <a href="misc.php?action=postpartner&amp;deleteSearch={$ppid}">{$lang->postpartner_own_delete}</a> 
-            <a href="misc.php?action=postpartner_edit&amp;ppid={$ppid}">{$lang->postpartner_own_edit}</a> 
-            <a href="misc.php?action=postpartner&amp;plusScene={$ppid}">{$lang->postpartner_own_plusScene}</a></div>
-            </div>'),
-        'sid'        => '-2',
-        'version'    => '',
-        'dateline'    => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    $insert_array = array(
-        'title'        => 'postpartner_ownsearch',
-        'template'    => $db->escape_string('<div class="postpartner_lists-subline">{$lang->postpartner_own_headline}</div>
-        <div class="postpartner_own">
-            {$postpartner_own}
-            {$postpartner_own_none}    
-        </div>'),
-        'sid'        => '-2',
-        'version'    => '',
-        'dateline'    => TIME_NOW
-    );
-    $db->insert_query("templates", $insert_array);
-
-    require_once MYBB_ADMIN_DIR."inc/functions_themes.php";
+    // Templates 
+    postpartner_templates();
 
     // STYLESHEET HINZUFÜGEN
-    $css = array(
-        'name' => 'postpartner.css',
-        'tid' => 1,
-        'attachedto' => '',
-        "stylesheet" => '#postpartner_lists {
-            width: 100%;
-            display: flex;
-            gap: 10px;
-            justify-content: space-between;
-            align-items: flex-start;
-        }
-        
-        .postpartner_lists-body {
-            width: 80%;
-            box-sizing: border-box;
-        }
-        
-        .postpartner_lists-headline {
-            background: #0066a2 url(../../../images/thead.png) top left repeat-x;
-            color: #ffffff;
-            border-bottom: 1px solid #263c30;
-            padding: 8px;
-            -moz-border-radius-topleft: 6px;
-            -moz-border-radius-topright: 6px;
-            -webkit-border-top-left-radius: 6px;
-            -webkit-border-top-right-radius: 6px;
-            border-top-left-radius: 6px;
-            border-top-right-radius: 6px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: nowrap;
-        }
-        
-        .postpartner_lists-subline {
-            background: #0f0f0f url(../../../images/tcat.png) repeat-x;
-            color: #fff;
-            border-top: 1px solid #444;
-            border-bottom: 1px solid #000;
-            padding: 6px;
-            font-size: 12px;
-        }
-        
-        .postpartner_lists-desc {
-            text-align: justify;
-            line-height: 180%;
-            padding: 20px 40px;
-        }
-        
-        .postpartner_add-headline {
-            background: #0f0f0f url(../../../images/tcat.png) repeat-x;
-            color: #fff;
-            border-top: 1px solid #444;
-            border-bottom: 1px solid #000;
-            padding: 6px;
-            font-size: 12px;
-        }
-        
-        .postpartner_add_table {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 10px;
-        }
-        
-        .postpartner_add_tableLeft {
-            width: 50%;
-        }
-        
-        .postpartner_add_tableRight {
-            width: 50%;
-        }
-        
-        .postpartner_add_tableCall {
-            display: flex;
-            align-items: flex-start;
-            justify-content: flex-start;
-            flex-wrap: nowrap;
-            gap: 10px;
-            padding: 10px;
-        }
-        
-        .postpartner_add_tableCell {
-            width: 49%;
-            text-align: justify;
-        }
-        
-        .postpartner_own {
-            display: flex;
-            gap: 10px;
-            padding: 5px 0;
-            flex-wrap: wrap;
-        }
-        
-        .postpartner_own-bit {
-            width: 49.5%;
-        }
-        
-        .postpartner_own-name {
-            font-size: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .postpartner_own-count {
-            /* float: right; */
-            font-size: 12px;
-        }
-        
-        .postpartner_own-search {
-            text-align: justify;
-            height: 100px;
-            overflow: auto;
-            padding-right: 5px;
-            margin: 5px 0;
-        }
-        
-        .postpartner_own-options {
-            display: flex;
-            justify-content: space-around;
-        }
-        
-        .postpartner_search {
-            box-sizing: border-box;
-            padding: 10px;
-        }
-        
-        .postpartner_search-name {
-            background: #0f0f0f url(../../../images/tcat.png) repeat-x;
-            color: #fff;
-            border-top: 1px solid #444;
-            border-bottom: 1px solid #000;
-            padding: 6px;
-            font-size: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .postpartner_search-box {
-            display: flex;
-            margin: 10px 0;
-            gap: 10px;
-        }
-        
-        .postpartner_search-avatar {
-            width: 120px;
-        }
-        
-        .postpartner_search-avatar img {
-            width: 120px;
-        }
-        
-        .postpartner_search-infos {
-            width: 100%;
-        }
-        
-        .postpartner_search-postfacts {
-            border-bottom: 1px solid #000;
-            padding: 6px;
-            font-size: 12px;
-            text-transform: uppercase;
-        }
-        
-        .postpartner_search-shortdesc {
-            text-align: justify;
-            max-height: 100px;
-            overflow: auto;
-            padding-right: 5px;
-        }
-        
-        .postpartner_search-options {
-            display: flex;
-            justify-content: space-around;
-        }
-        
-        .postpartner-filter {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            justify-content: center;
-            margin-bottom: 10px;
-            align-content: flex-start;
-        }
-        
-        .postpartner-filter-headline {
-            width: 100%;
-            text-align: left;
-            box-sizing: border-box;
-            background: #0f0f0f url(../../../images/tcat.png) repeat-x;
-            color: #fff;
-            padding: 5px;
-        }
-        
-        .postpartner-filteroptions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            justify-content: flex-start;
-        }
-        
-        .postpartner-dice {
-            margin-bottom: 20px;
-        }
-        
-        .postpartner-dice-headline {
-            width: 100%;
-            text-align: left;
-            box-sizing: border-box;
-            background: #0f0f0f url(../../../images/tcat.png) repeat-x;
-            color: #fff;
-            padding: 5px;
-        }
-        
-        .postpartner-dice-username {
-            text-align: center;
-            font-size: 25px;
-            margin: 5px 0 10px 0;
-        }
-        
-        .postpartner-dice-options {
-            display: flex;
-            justify-content: space-around;
-        }
-        
-        .postpartner_edit-headline {
-           background: #0f0f0f url(../../../images/tcat.png) repeat-x;
-           color: #fff;
-           border-top: 1px solid #444;
-           border-bottom: 1px solid #000;
-           padding: 6px;
-           font-size: 12px;
-        }
-        
-        .postpartner_edit_table {
-           display: flex;
-           gap: 10px;
-           justify-content: center;
-           align-items: flex-start;
-           padding: 10px;
-        }
-        
-        .postpartner_edit_tableLeft {
-           width: 50%;
-        }
-        
-        .postpartner_edit_tableRight {
-           width: 50%;
-        }
-        
-        .postpartner_edit_tableCall {
-           display: flex;
-           align-items: flex-start;
-           justify-content: flex-start;
-           flex-wrap: nowrap;
-           gap: 10px;
-           padding: 10px;
-        }
-        
-        .postpartner_edit_tableCell {
-           width: 49%;
-        }
-        
-        .postpartner_edit_character {
-            color: #333;
-            padding: 3px;
-            font-size: 13px;
-            font-family: Tahoma, Verdana, Arial, Sans-Serif;
-            margin-bottom: 5px;
-            width: 98%;
-        }
-        
-        .postpartner_alert {
-            background: #FFF6BF;
-            border: 1px solid #FFD324;
-            text-align: center;
-            padding: 5px 20px;
-            margin-bottom: 15px;
-            font-size: 11px;
-            -moz-border-radius: 6px;
-            -webkit-border-radius: 6px;
-            border-radius: 6px;
-        }
-        
-        .header_rejectRequest {
-            width: 600px;
-        }
-        
-        .header_rejectRequest textarea {
-            width: 100%;
-            height: 100px;
-        }
-        
-        .header_rejectRequest input {
-            margin-bottom: 10px;
-        }',
-        'cachefile' => $db->escape_string(str_replace('/', '', 'postpartner.css')),
-        'lastmodified' => time()
-    );
-    
+	require_once MYBB_ADMIN_DIR."inc/functions_themes.php";
+    // Funktion
+    $css = postpartner_stylesheet();
     $sid = $db->insert_query("themestylesheets", $css);
-    $db->update_query("themestylesheets", array("cachefile" => "postpartner.css"), "sid = '".$sid."'", 1);
+	$db->update_query("themestylesheets", array("cachefile" => "postpartner.css"), "sid = '".$sid."'", 1);
 
-    $tids = $db->simple_select("themes", "tid");
-    while($theme = $db->fetch_array($tids)) {
-        update_theme_stylesheet_list($theme['tid']);
-    }
-
+	$tids = $db->simple_select("themes", "tid");
+	while($theme = $db->fetch_array($tids)) {
+		update_theme_stylesheet_list($theme['tid']);
+	}
 }
  
 // Funktion zur Überprüfung des Installationsstatus; liefert true zurürck, wenn Plugin installiert, sonst false (optional).
@@ -995,7 +216,7 @@ function postpartner_settings_change(){
 
     $result = $db->simple_select('settinggroups', 'gid', "name='postpartner'", array("limit" => 1));
     $group = $db->fetch_array($result);
-    $postpartner_settings_peeker = ($mybb->input['gid'] == $group['gid']) && ($mybb->request_method != 'post');
+    $postpartner_settings_peeker = ($mybb->get_input('gid') == $group['gid']) && ($mybb->request_method != 'post');
 }
 
 function postpartner_settings_peek(&$peekers){
@@ -1006,10 +227,150 @@ function postpartner_settings_peek(&$peekers){
     }
 }
 
+// UPDATE KRAM
+// Stylesheet zum Master Style hinzufügen
+function postpartner_admin_update_stylesheet(&$table) {
+
+    global $db, $mybb, $lang;
+	
+    $lang->load('rpgstuff_stylesheet_updates');
+
+    require_once MYBB_ADMIN_DIR."inc/functions_themes.php";
+
+    // HINZUFÜGEN
+    if ($mybb->input['action'] == 'add_master' AND $mybb->get_input('plugin') == "postpartner") {
+
+        $css = postpartner_stylesheet();
+        
+        $sid = $db->insert_query("themestylesheets", $css);
+        $db->update_query("themestylesheets", array("cachefile" => "postpartner.css"), "sid = '".$sid."'", 1);
+    
+        $tids = $db->simple_select("themes", "tid");
+        while($theme = $db->fetch_array($tids)) {
+            update_theme_stylesheet_list($theme['tid']);
+        } 
+
+        flash_message($lang->stylesheets_flash, "success");
+        admin_redirect("index.php?module=rpgstuff-stylesheet_updates");
+    }
+
+    // Zelle mit dem Namen des Themes
+    $table->construct_cell("<b>".htmlspecialchars_uni("Postpartner Suche")."</b>", array('width' => '70%'));
+
+    // Ob im Master Style vorhanden
+    $master_check = $db->fetch_field($db->query("SELECT tid FROM ".TABLE_PREFIX."themestylesheets 
+    WHERE name = 'postpartner.css' 
+    AND tid = 1
+    "), "tid");
+    
+    if (!empty($master_check)) {
+        $masterstyle = true;
+    } else {
+        $masterstyle = false;
+    }
+
+    if (!empty($masterstyle)) {
+        $table->construct_cell($lang->stylesheets_masterstyle, array('class' => 'align_center'));
+    } else {
+        $table->construct_cell("<a href=\"index.php?module=rpgstuff-stylesheet_updates&action=add_master&plugin=postpartner\">".$lang->stylesheets_add."</a>", array('class' => 'align_center'));
+    }
+    
+    $table->construct_row();
+}
+
+// Plugin Update
+function postpartner_admin_update_plugin(&$table) {
+
+    global $db, $mybb, $lang;
+	
+    $lang->load('rpgstuff_plugin_updates');
+
+    // UPDATE
+    if ($mybb->input['action'] == 'add_update' AND $mybb->get_input('plugin') == "postpartner") {
+
+        // Einstellungen überprüfen => Type = update
+        postpartner_settings('update');
+        rebuild_settings();
+
+        // Templates 
+        postpartner_templates('update');
+
+        // Stylesheet
+        $update_data = postpartner_stylesheet_update();
+        $update_stylesheet = $update_data['stylesheet'];
+        $update_string = $update_data['update_string'];
+        if (!empty($update_string)) {
+
+            // Ob im Master Style die Überprüfung vorhanden ist
+            $masterstylesheet = $db->fetch_field($db->query("SELECT stylesheet FROM ".TABLE_PREFIX."themestylesheets WHERE tid = 1 AND name = 'postpartner.css'"), "stylesheet");
+            $pos = strpos($masterstylesheet, $update_string);
+            if ($pos === false) { // nicht vorhanden 
+            
+                $theme_query = $db->simple_select('themes', 'tid, name');
+                while ($theme = $db->fetch_array($theme_query)) {
+        
+                    $stylesheet_query = $db->simple_select("themestylesheets", "*", "name='".$db->escape_string('postpartner.css')."' AND tid = ".$theme['tid']);
+                    $stylesheet = $db->fetch_array($stylesheet_query);
+        
+                    if ($stylesheet) {
+
+                        require_once MYBB_ADMIN_DIR."inc/functions_themes.php";
+        
+                        $sid = $stylesheet['sid'];
+            
+                        $updated_stylesheet = array(
+                            "cachefile" => $db->escape_string($stylesheet['name']),
+                            "stylesheet" => $db->escape_string($stylesheet['stylesheet']."\n\n".$update_stylesheet),
+                            "lastmodified" => TIME_NOW
+                        );
+            
+                        $db->update_query("themestylesheets", $updated_stylesheet, "sid='".$sid."'");
+            
+                        if(!cache_stylesheet($theme['tid'], $stylesheet['name'], $updated_stylesheet['stylesheet'])) {
+                            $db->update_query("themestylesheets", array('cachefile' => "css.php?stylesheet=".$sid), "sid='".$sid."'", 1);
+                        }
+            
+                        update_theme_stylesheet_list($theme['tid']);
+                    }
+                }
+            } 
+        }
+
+        // Datenbanktabellen & Felder
+        postpartner_database();
+
+        flash_message($lang->plugins_flash, "success");
+        admin_redirect("index.php?module=rpgstuff-plugin_updates");
+    }
+
+    // Zelle mit dem Namen des Themes
+    $table->construct_cell("<b>".htmlspecialchars_uni("Postpartner Suche")."</b>", array('width' => '70%'));
+
+    // Überprüfen, ob Update erledigt
+    $update_check = postpartner_is_updated();
+
+    if (!empty($update_check)) {
+        $table->construct_cell($lang->plugins_actual, array('class' => 'align_center'));
+    } else {
+        $table->construct_cell("<a href=\"index.php?module=rpgstuff-plugin_updates&action=add_update&plugin=postpartner\">".$lang->plugins_update."</a>", array('class' => 'align_center'));
+    }
+    
+    $table->construct_row();
+}
+
 // POSTPARTNERSUCHE
 function postpartner_misc(){
 
     global $db, $cache, $mybb, $lang, $templates, $theme, $header, $headerinclude, $footer, $parser, $code_html, $postpartner_ownsearch, $postpartner_own, $filter_postingperspective, $postpartner_filter, $postpartner_bit;
+
+    // return if the action key isn't part of the input
+    if ($mybb->get_input('action', MYBB::INPUT_STRING) !== 'postpartner'
+    AND $mybb->get_input('action', MYBB::INPUT_STRING) !== 'postpartner_add'
+    AND $mybb->get_input('action', MYBB::INPUT_STRING) !== 'postpartner_edit'
+    AND $mybb->get_input('action', MYBB::INPUT_STRING) !== 'postpartner_edit_do'
+    AND $mybb->get_input('action', MYBB::INPUT_STRING) !== 'rejectRequest') {
+        return;
+    }
 
     // EINSTELLUNGEN
 	$allow_groups = $mybb->settings['postpartner_allow_groups'];
@@ -1154,7 +515,9 @@ function postpartner_misc(){
 		if($liststype_setting != 2){
             // Jules Plugin
             if ($liststype_setting == 1) {
+                $lang->load("lists");
                 $query_lists = $db->simple_select("lists", "*");
+                $menu_bit = "";
                 while($list = $db->fetch_array($query_lists)) {
                     eval("\$menu_bit .= \"".$templates->get("lists_menu_bit")."\";");
                 }
@@ -1162,6 +525,8 @@ function postpartner_misc(){
             } else {
                 eval("\$lists_menu = \"".$templates->get($listsmenu_setting)."\";");
             }
+        } else {
+            $lists_menu = "";
         }
 
         // NAVIGATION
@@ -1484,6 +849,9 @@ function postpartner_misc(){
             eval("\$postpartner_filter .= \"".$templates->get("postpartner_filter")."\";");
 
         } else {
+            $postinglength_sql = "";
+            $postingfrequency_sql = "";
+            $postingperspective_sql = "";
             $postpartner_filter = "";
         }
 
@@ -1493,9 +861,9 @@ function postpartner_misc(){
         WHERE p.uid NOT IN (SELECT uid FROM ".TABLE_PREFIX."users u WHERE u.uid = '$mainID' OR u.as_uid = '$mainID' AND $user_id != 0) 
         AND p.ppid NOT IN (SELECT ppid FROM ".TABLE_PREFIX."postpartners_alerts pa WHERE p.ppid = pa.ppid AND pa.interestedUser = '$user_id')           
         AND p.uid NOT IN (SELECT interestedUser FROM ".TABLE_PREFIX."postpartners_alerts pa WHERE pa.searchUser = '$user_id')
-        $postinglength_sql
-        $postingfrequency_sql
-        $postingperspective_sql
+        ".$postinglength_sql."
+        ".$postingfrequency_sql."
+        ".$postingperspective_sql."
         ORDER BY (SELECT username FROM ".TABLE_PREFIX."users u WHERE u.uid = p.uid) ASC
         ");
 
@@ -1628,8 +996,6 @@ function postpartner_misc(){
 
         // RANDOM POSTPARTNER AUSWÜRFELN
         if ($postpartner_dice == 1 AND $user_id != 0) {
-            // WÜRFEL
-            eval("\$postpartner_dice = \"".$templates->get("postpartner_dice")."\";");
 
             // AUSGABE
             if ($mybb->get_input('randomDice')) {
@@ -1653,8 +1019,10 @@ function postpartner_misc(){
             } else {
                 $postpartner_dice_bit = "";   
             }
-
+            // WÜRFEL
+            eval("\$postpartner_dice = \"".$templates->get("postpartner_dice")."\";");
         } else {
+            $postpartner_dice_bit = "";
             $postpartner_dice = "";
         }
 
@@ -1826,7 +1194,9 @@ function postpartner_misc(){
 		if($liststype_setting != 2){
             // Jules Plugin
             if ($liststype_setting == 1) {
+                $lang->load("lists");
                 $query_lists = $db->simple_select("lists", "*");
+                $menu_bit = "";
                 while($list = $db->fetch_array($query_lists)) {
                     eval("\$menu_bit .= \"".$templates->get("lists_menu_bit")."\";");
                 }
@@ -1895,9 +1265,9 @@ function postpartner_misc(){
     if($mybb->input['action'] == "postpartner_edit_do"){
 
         $ppid = $mybb->get_input('ppid'); 
-        $old_max = $mybb->get_input('old_max'); 
-        $old_res = $mybb->get_input('old_res'); 
-        $new_max = $mybb->get_input('max_count'); 
+        $old_max = (int)$mybb->get_input('old_max'); 
+        $old_res = (int)$mybb->get_input('old_res'); 
+        $new_max = (int)$mybb->get_input('max_count'); 
         $charactername = get_user($mybb->get_input('uid'))['username'];
 
         // Vergleichen
@@ -1958,20 +1328,21 @@ function postpartner_misc(){
         // Ablehnungsgrund
         $rejectreason =  $db->escape_string($mybb->get_input('rejectreason'));
 
+        $ownip = $db->fetch_field($db->query("SELECT ip FROM ".TABLE_PREFIX."sessions WHERE uid = '".$searchUser."'"), "ip");
+
         $pm_change = array(
             "subject" => $lang->postpartner_pm_subject,
             "message" => $lang->sprintf($lang->postpartner_pm_message, $searchUsername, $rejectreason),
-            //to: wer muss die anfrage bestätigen
             "fromid" => $searchUser,
-            //from: wer hat die anfrage gestellt
             "toid" => $interestedUser,
             "icon" => "",
             "do" => "",
             "pmid" => "",
+            "ipaddress" => $ownip
         );
 
         $pm_change['options'] = array(
-            'signature' => '0',
+            'signature' => '1',
             'savecopy' => '0',
             'disablesmilies' => '0',
             'readreceipt' => '0',
@@ -2219,4 +1590,892 @@ function postpartner_alerts() {
         );
     }
 
+}
+
+// DATENBANKTABELLEN
+function postpartner_database() {
+
+    global $db;
+    
+    // DATENBANKEN ERSTELLEN
+    if (!$db->table_exists("postpartners")) {
+        $db->query("CREATE TABLE ".TABLE_PREFIX."postpartners(
+            `ppid` int(10) NOT NULL AUTO_INCREMENT,
+            `uid` int(11) NOT NULL,
+            `max_count` int(10) NOT NULL,
+            `res_count` int(10) NOT NULL,
+            `inplaydate` VARCHAR(500) NOT NULL,
+            `searchdesc` VARCHAR(2500) NOT NULL,
+            PRIMARY KEY(`ppid`),
+            KEY `ppid` (`ppid`)
+            )
+            ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci AUTO_INCREMENT=1    
+        ");
+    }
+
+    // einzelne Datein
+    if (!$db->table_exists("postpartners_alerts")) {
+        $db->query("CREATE TABLE ".TABLE_PREFIX."postpartners_alerts(
+            `paid` int(10) NOT NULL AUTO_INCREMENT,
+            `ppid` int(11) NOT NULL,
+            `searchUser` int(10) NOT NULL,
+            `interestedUser` int(10) NOT NULL,
+            PRIMARY KEY(`paid`),
+            KEY `paid` (`paid`)
+            )
+            ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci AUTO_INCREMENT=1    
+        ");
+    }
+}
+
+// EINSTELLUNGEN
+function postpartner_settings($type = 'install') {
+
+    global $db; 
+
+    $setting_array = array(
+        'postpartner_allow_groups' => array(
+            'title' => 'Erlaubte Gruppen',
+			'description' => 'Welche Gruppen dürfen neue Postpartnersuche veröffentlichen?',
+			'optionscode' => 'groupselect',
+			'value' => '4', // Default
+			'disporder' => 1
+        ),
+		'postpartner_guest' => array(
+			'title' => 'Gästeberechtigung',
+			'description' => 'Dürfen Gäste die Postpartnersuche sehen?',
+			'optionscode' => 'yesno',
+			'value' => '2', // Default
+			'disporder' => 2
+		),
+		'postpartner_guest_avatar' => array(
+			'title' => 'Avatar verstecken',
+			'description' => 'Dürfen Gäste die Avatare der Accounts sehen?',
+			'optionscode' => 'yesno',
+			'value' => '0', // Default
+			'disporder' => 3
+		),
+		'postpartner_defaultavatar' => array(
+			'title' => 'Standard-Avatar',
+			'description' => 'Wie heißt die Bilddatei, für die Standard-Avatare? Damit der Avatar für jedes Design angepasst wird, sollte der Namen in allen Designs gleich sein.',
+			'optionscode' => 'text',
+			'value' => 'default_avatar.png', // Default
+			'disporder' => 4
+		),
+		'postpartner_profilfeldsystem' => array(
+			'title' => 'Profilfeldsystem',
+			'description' => 'Werden klassische Profilfelder oder Steckbrieffelder von Risuenas Steckbrief-Plugin verwendet? Es kann auch ausgewählt werden, dass beides verwendet wird.',
+			'optionscode' => 'select\n0=klassische Profilfelder\n1=Steckbrief-Plugin\n2=beide Varianten',
+			'value' => '0', // Default
+			'disporder' => 5
+		),
+		'postpartner_shortdesc' => array(
+			'title' => 'Kurzbeschreibung',
+			'description' => 'Wie lautet die FID/Identifikator von dem Profilfeld/Steckbrieffeld der Kurzbeschreibung? Wenn nicht gewünscht, dann einfach frei lassen.<br>
+            <b>Hinweis:</b> Bei klassischen Profilfeldern eine Zahl eintragen. Bei dem Steckbrief-Plugin von Risuena muss der Name/Identifikator des Felds eingetragen werden.',
+			'optionscode' => 'text',
+			'value' => '2', // Default
+			'disporder' => 6
+		),
+		'postpartner_postinglength' => array(
+			'title' => 'Postinglänge',
+			'description' => 'Wie lautet die FID/Identifikator von dem Profilfeld/Steckbrieffeld der Postinglänge? Wenn nicht gewünscht, dann einfach frei lassen.<br>
+            <b>Hinweis:</b> Bei klassischen Profilfeldern eine Zahl eintragen. Bei dem Steckbrief-Plugin von Risuena muss der Name/Identifikator des Felds eingetragen werden.',
+			'optionscode' => 'text',
+			'value' => '5', // Default
+			'disporder' => 7
+		),
+		'postpartner_postingfrequency' => array(
+			'title' => 'Postingfrequenz',
+			'description' => 'Wie lautet die FID/Identifikator von dem Profilfeld/Steckbrieffeld der Postingfrequenz? Wenn nicht gewünscht, dann einfach frei lassen.<br>
+            <b>Hinweis:</b> Bei klassischen Profilfeldern eine Zahl eintragen. Bei dem Steckbrief-Plugin von Risuena muss der Name/Identifikator des Felds eingetragen werden.',
+			'optionscode' => 'text',
+			'value' => '6', // Default
+			'disporder' => 8
+		),
+		'postpartner_postingperspective' => array(
+			'title' => 'Postperspektive',
+			'description' => 'Wie lautet die FID/Identifikator von dem Profilfeld/Steckbrieffeld der Postperspektive? Wenn nicht gewünscht, dann einfach frei lassen.<br>
+            <b>Hinweis:</b> Bei klassischen Profilfeldern eine Zahl eintragen. Bei dem Steckbrief-Plugin von Risuena muss der Name/Identifikator des Felds eingetragen werden.',
+			'optionscode' => 'text',
+			'value' => '24', // Default
+			'disporder' => 9
+		),
+		'postpartner_filteroption' => array(
+			'title' => 'Filtermöglichkeit',
+			'description' => 'Sollen die Postangebote filterbar sein nach den Profilfeldern Postinglänge, Postingfrequenz und Postperspektive?<br>
+            <b>Hinweis:</b> Die Filtermöglichkeit wird nur angezeigt, wenn das jeweilige Feld ein feste Auswahlmöglichkeiten bietet.',
+			'optionscode' => 'yesno',
+			'value' => '1', // Default
+			'disporder' => 10
+		),
+		'postpartner_dice' => array(
+			'title' => 'Postpartnerwürfel',
+			'description' => 'Sollen User die Möglichkeit haben sich aus den Angeboten eine zufällige Ausgabe anzuzeigen? Eine Art Würfel.',
+			'optionscode' => 'yesno',
+			'value' => '1', // Default
+			'disporder' => 11
+		),
+        'postpartner_lists' => array(
+            'title' => 'Listen PHP',
+            'description' => 'Wie heißt die Hauptseite der Listen-Seite? Dies dient zur Ergänzung der Navigation. Falls nicht gewünscht einfach leer lassen.',
+            'optionscode' => 'text',
+            'value' => 'lists.php', // Default
+            'disporder' => 12
+        ),
+		'postpartner_lists_type' => array(
+			'title' => 'Listen Menü',
+			'description' => 'Soll über die Variable {$lists_menu} das Menü der Listen aufgerufen werden?<br>Wenn ja, muss noch angegeben werden, ob eine eigene PHP-Datei oder das Automatische Listen-Plugin von sparks fly genutzt? ',
+			'optionscode' => 'select\n0=eigene Listen/PHP-Datei\n1=Automatische Listen-Plugin\n2=keine Menü-Anzeige',
+			'value' => '2', // Default
+			'disporder' => 13
+		),
+        'postpartner_lists_menu' => array(
+            'title' => 'Listen Menü Template',
+            'description' => 'Damit das Listen Menü richtig angezeigt werden kann, muss hier einmal der Name von dem Tpl von dem Listen-Menü angegeben werden.',
+            'optionscode' => 'text',
+            'value' => 'lists_nav', // Default
+            'disporder' => 14
+        ),
+        'postpartner_categorie' => array(
+            'title' => 'Inplay-Kategorie',
+            'description' => 'Wähle hier die Inplaykategorie aus.',
+            'optionscode' => 'forumselectsingle',
+            'value' => '10', // Default
+            'disporder' => 15
+        ),
+    );
+
+    $gid = $db->fetch_field($db->write_query("SELECT gid FROM ".TABLE_PREFIX."settinggroups WHERE name = 'postpartner' LIMIT 1;"), "gid");
+
+    if ($type == 'install') {
+        foreach ($setting_array as $name => $setting) {
+          $setting['name'] = $name;
+          $setting['gid'] = $gid;
+          $db->insert_query('settings', $setting);
+        }  
+    }
+
+    if ($type == 'update') {
+
+        // Einzeln durchgehen 
+        foreach ($setting_array as $name => $setting) {
+            $setting['name'] = $name;
+            $check = $db->write_query("SELECT name FROM ".TABLE_PREFIX."settings WHERE name = '".$name."'"); // Überprüfen, ob sie vorhanden ist
+            $check = $db->num_rows($check);
+            $setting['gid'] = $gid;
+            if ($check == 0) { // nicht vorhanden, hinzufügen
+              $db->insert_query('settings', $setting);
+            }
+        }
+
+        // Weiter Einstellungs Updates
+           
+    }
+
+    rebuild_settings();
+}
+
+// TEMPLATES
+function postpartner_templates($mode = '') {
+
+    global $db;
+
+    $templates[] = array(
+        'title'        => 'postpartner',
+        'template'    => $db->escape_string('<html>
+        <head>
+           <title>{$mybb->settings[\'bbname\']} - {$lang->postpartner_navigation}</title>
+           {$headerinclude}
+        </head>
+        <body>
+           {$header}
+           <table width="100%" border="0" align="center">
+              <tr>
+                 <td valign="top">
+                    <div id="postpartner_lists">
+                       {$lists_menu}
+                       <div class="postpartner_lists-body">
+                          <div class="postpartner_lists-headline">{$lang->postpartner_navigation}</div>
+                          <div class="postpartner_lists-desc">{$lang->postpartner_overview_desc}</div>
+                          {$postpartner_add}
+                          {$postpartner_ownsearch}
+                          <div class="postpartner_lists-headline">
+							  {$counter_searchs}
+                             {$postpartner_dice}
+                           </div>
+                           {$postpartner_dice_bit}
+                           {$postpartner_filter}
+                          {$postpartner_bit}	 
+                           {$postpartner_none}
+                       </div>
+                    </div>
+                 </td>
+              </tr>
+           </table>
+           {$footer}
+        </body>
+     </html>'),
+        'sid'        => '-2',
+        'version'    => '',
+        'dateline'    => TIME_NOW
+    );
+
+    $templates[] = array(
+        'title'        => 'postpartner_add',
+        'template'    => $db->escape_string('<form method="post" action="misc.php?action=postpartner_add" id="postpartner_add">
+        <div class="postpartner_add-headline">{$lang->postpartner_add_headline}</div>
+        <div class="postpartner_add_table">
+          <div class="postpartner_add_tableLeft">
+             <div class="postpartner_add_tableCall">
+                <div class="postpartner_add_tableCell">
+                   <b>{$lang->postpartner_add_character}</b><br>
+                   <span class="smalltext">{$lang->postpartner_add_character_desc}</span>
+                </div>
+                <div class="postpartner_add_tableCell">
+                   <select name="character">
+                      <option value="">{$lang->postpartner_add_character_select}</option>
+                      {$accounts_select}
+                   </select>
+                </div>
+             </div>
+              
+             <div class="postpartner_add_tableCall">
+                <div class="postpartner_add_tableCell">
+                   <b>{$lang->postpartner_add_maxcount}</b><br>
+                   <span class="smalltext">{$lang->postpartner_add_maxcount_desc}</span>
+                </div>
+                <div class="postpartner_add_tableCell">
+                   <input type="text" class="textbox" name="max_count" id="max_count" placeholder="4"> <br> 
+                    <span class="smalltext">
+                        <strong>{$lang->postpartner_add_maxcount_check}</strong> 
+                        <input type="checkbox" class="checkbox" name="max_count" id="max_count" value="0"  style="vertical-align: sub;"> 
+                    </span>
+                </div>
+             </div>
+              
+             <div class="postpartner_add_tableCall">
+                <div class="postpartner_add_tableCell">
+                   <b>{$lang->postpartner_add_inplay}</b><br>
+                   <span class="smalltext">{$lang->postpartner_add_inplay_desc}</span>
+                </div>
+                <div class="postpartner_add_tableCell">
+                    <input type="text" class="textbox" name="inplaydate" id="inplaydate" placeholder="{$lang->postpartner_add_inplay_value}" required="">  
+                </div>
+             </div>
+              
+          </div>
+          <div class="postpartner_add_tableRight">
+             <b>{$lang->postpartner_add_searchdesc}</b><br>
+             <span class="smalltext">{$lang->postpartner_add_searchdesc_desc}</span><br>
+             <textarea class="textarea" name="searchdesc" id="searchdesc" rows="5" cols="30" style="width: 95%"></textarea>
+          </div>
+       </div>
+       <div style="text-align: center;margin-bottom: 10px;">
+          <input type="hidden" name="action" value="postpartner_add">
+          <input type="submit" value="{$lang->postpartner_add_button}" name="postpartner_add" class="button">    
+       </div>
+       </form>'),
+        'sid'        => '-2',
+        'version'    => '',
+        'dateline'    => TIME_NOW
+    );
+
+    $templates[] = array(
+        'title'        => 'postpartner_character',
+        'template'    => $db->escape_string('<div class="postpartner_search">
+        <div class="postpartner_search-name">{$username}
+            <span class="postpartner_search-count">{$scene_count}</span>
+        </div>
+        <div class="postpartner_search-box">
+            <div class="postpartner_search-avatar">
+                <img src="{$avatar_url}">
+            </div>
+            <div class="postpartner_search-infos">
+                <div class="postpartner_search-postfacts">{$postfacts}</div>	
+                <div class="postpartner_search-shortdesc">{$shortdesc}</div>	
+            </div>	
+        </div>
+        <div class="postpartner_search-desc"><b>{$lang->postpartner_own_inplay} {$inplaydate}</b> • {$searchdesc}</div>	
+        <div class="postpartner_search-options">
+            {$options_links}
+        </div>	
+        </div>'),
+        'sid'        => '-2',
+        'version'    => '',
+        'dateline'    => TIME_NOW
+    );
+    
+    $templates[] = array(
+        'title'        => 'postpartner_dice',
+        'template'    => $db->escape_string('<form id="chara_new" method="get" action="misc.php">
+        <input type="hidden" name="action" value="postpartner" />
+        <input type="hidden" name="randomDice" value="random" />
+        <button type="submit">
+            {$lang->postpartner_dice}
+        </button>	
+        </form>'),
+        'sid'        => '-2',
+        'version'    => '',
+        'dateline'    => TIME_NOW
+    );
+    
+    $templates[] = array(
+        'title'        => 'postpartner_dice_bit',
+        'template'    => $db->escape_string('<div class="postpartner-dice">
+        <div class="postpartner-dice-headline">{$lang->postpartner_dice_headline}</div>
+        <div class="postpartner-dice-username">{$charactername}</div>
+        <div class="postpartner-dice-options">
+            <a href="misc.php?action=postpartner&amp;interestedUser={$dice[\'ppid\']}">{$postpartner_options_interested}</a>
+            <a href="private.php?action=send&amp;uid={$dice[\'uid\']}">{$lang->postpartner_options_pn}</a>
+        </div>
+        </div>'),
+        'sid'        => '-2',
+        'version'    => '',
+        'dateline'    => TIME_NOW
+    );
+    
+    $templates[] = array(
+        'title' => 'postpartner_edit',
+        'template' => $db->escape_string('<html>
+        <head>
+      <title>{$mybb->settings[\'bbname\']} - {$postpartner_navigation_edit}</title>
+      {$headerinclude}
+      </head>
+      <body>
+      {$header}
+      <table width="100%" border="0" align="center">
+         <tr>
+            <td valign="top">
+               <div id="postpartner_lists">
+                  {$lists_menu}
+                  <div class="postpartner_lists-body">
+                     <div class="postpartner_lists-headline">{$lang->postpartner_edit_headline}</div>
+                       <form id="edit_postpartner" method="post" action="misc.php?action=postpartner_edit_do&ppid={$ppid}">
+                       <div class="postpartner_edit_table">
+      <div class="postpartner_edit_tableLeft">
+         <div class="postpartner_edit_tableCall">
+            <div class="postpartner_edit_tableCell">
+               <b>{$lang->postpartner_add_character}</b>
+            </div>
+            <div class="postpartner_edit_tableCell">
+               <div class="postpartner_edit_character">{$charactername}</div>
+            </div>
+         </div>
+         <div class="postpartner_edit_tableCall">
+            <div class="postpartner_edit_tableCell">
+               <b>{$lang->postpartner_add_maxcount}</b><br>
+               <span class="smalltext">{$lang->postpartner_add_maxcount_desc}<br>{$scene_count}
+                   </span>
+            </div>
+            <div class="postpartner_edit_tableCell">
+               <input type="text" class="textbox" name="max_count" id="max_count" value="{$max_count}"> <br>
+                <span class="smalltext">
+                    <strong>{$lang->postpartner_add_maxcount_check}</strong>
+                    <input type="checkbox" class="checkbox" name="max_count" id="max_count" value="0" {$radio_checked} style="vertical-align: sub;">
+                </span>
+            </div>
+         </div>
+         <div class="postpartner_edit_tableCall">
+            <div class="postpartner_edit_tableCell">
+               <b>{$lang->postpartner_add_inplay}</b><br>
+               <span class="smalltext">{$lang->postpartner_add_inplay_desc}</span>
+            </div>
+            <div class="postpartner_edit_tableCell">
+                <input type="text" class="textbox" name="inplaydate" id="inplaydate" placeholder="{$lang->postpartner_add_inplay_value}" value="{$inplaydate}" required="">
+            </div>
+         </div>
+      </div>
+      <div class="postpartner_edit_tableRight">
+         <b>{$lang->postpartner_add_searchdesc}</b><br>
+         <span class="smalltext">{$lang->postpartner_add_searchdesc_desc}</span><br>
+         <textarea class="textarea" name="searchdesc" id="searchdesc" rows="5" cols="30" style="width: 95%">{$searchdesc}</textarea>
+      </div>
+   </div>
+   <div style="text-align: center;margin-bottom: 10px;">
+                                 <input type="hidden" name="ppid" id="ppid" value="{$ppid}" class="textbox" />
+                                 <input type="hidden" name="old_max" id="old_max" value="{$max_count}" class="textbox" />
+                                 <input type="hidden" name="old_res" id="old_res" value="{$edit[\'res_count\']}" class="textbox" />
+                                 <input type="hidden" name="uid" id="uid" value="{$edit[\'uid\']}" class="textbox" />
+                                 <input type="submit" value="{$lang->postpartner_edit_button}" class="button" />
+   </div>
+
+   </form>
+                  </div>
+               </div>
+            </td>
+         </tr>
+      </table>
+      {$footer}
+   </body>
+
+   </html>'),
+        'sid' => '-2',
+        'version' => '',
+        'dateline' => TIME_NOW
+    );
+    
+    $templates[] = array(
+        'title'        => 'postpartner_filter',
+        'template'    => $db->escape_string('<form id="chara_new" method="get" action="misc.php">
+        <input type="hidden" name="action" value="postpartner" />
+        <div class="postpartner-filter">
+           <div class="postpartner-filter-headline">{$lang->postpartner_filter}</div>
+           <div class="postpartner-filteroptions">
+               {$filter_postinglength}
+               {$filter_postingperspective}
+               {$filter_postingfrequency}
+           </div>
+        </div>
+        <center>
+           <input type="submit" name="search_filter" value="{$lang->postpartner_filter_button}" id="submit" class="button">
+        </center>
+     </form>'),
+        'sid'        => '-2',
+        'version'    => '',
+        'dateline'    => TIME_NOW
+    );
+    
+    $templates[] = array(
+        'title'        => 'postpartner_header',
+        'template'    => $db->escape_string('<div class="postpartner_alert">
+        {$postpartner_headertext}<br>
+        <a href="misc.php?action=postpartner&acceptRequest={$ppid}">
+            {$lang->postpartner_header_accept}
+        </a>
+        &nbsp;
+        {$rejectlink}
+        </div>'),
+        'sid'        => '-2',
+        'version'    => '',
+        'dateline'    => TIME_NOW
+    );
+    
+    $templates[] = array(
+        'title'        => 'postpartner_header_rejectRequest',
+        'template'    => $db->escape_string('<form action="misc.php?action=rejectRequest&paid={$paid}" method="post">   	
+        <input type="hidden" name="paid" id="paid" value="{$paid}"/>  
+        <input type="hidden" name="saveurl" value="{$saveurl}" />
+        <div class="header_rejectRequest">
+            <div class="thead">{$lang->postpartner_header_reject_headline}</div>
+            <div class="postpartner_add_tableCall">
+        <div class="postpartner_add_tableCell">
+            <b>{$lang->postpartner_header_reject_pm}</b><br>
+            <span class="smalltext">{$lang->postpartner_header_reject_pm_desc}</span>    
+        </div>
+              
+        <div class="postpartner_add_tableCell">
+            <textarea name="rejectreason" id="rejectreason"></textarea>
+        </div>    
+        </div>
+            <center>
+            <input type="submit" class="button" value="{$lang->postpartner_header_reject_button}">
+            </center>
+        </div>
+        </form>'),
+        'sid'        => '-2',
+        'version'    => '',
+        'dateline'    => TIME_NOW
+    );
+    
+    $templates[] = array(
+        'title'        => 'postpartner_none',
+        'template'    => $db->escape_string('<div style="text-align:center;margin:10px auto;">{$lang_postpartner_none}</div>'),
+        'sid'        => '-2',
+        'version'    => '',
+        'dateline'    => TIME_NOW
+    );
+
+    $templates[] = array(
+        'title'        => 'postpartner_own',
+        'template'    => $db->escape_string('<div class="postpartner_own-bit">
+        <div class="postpartner_own-name">{$username}
+            <span class="postpartner_own-count">{$scene_count}</span>
+        </div>
+        <div class="postpartner_own-search"><b>{$lang->postpartner_own_inplay} {$inplaydate}</b> • {$searchdesc}</div>
+        <div class="postpartner_own-options">
+            <a href="misc.php?action=postpartner&amp;deleteSearch={$ppid}">{$lang->postpartner_own_delete}</a> 
+            <a href="misc.php?action=postpartner_edit&amp;ppid={$ppid}">{$lang->postpartner_own_edit}</a> 
+            <a href="misc.php?action=postpartner&amp;plusScene={$ppid}">{$lang->postpartner_own_plusScene}</a></div>
+            </div>'),
+        'sid'        => '-2',
+        'version'    => '',
+        'dateline'    => TIME_NOW
+    );
+
+    $templates[] = array(
+        'title'        => 'postpartner_ownsearch',
+        'template'    => $db->escape_string('<div class="postpartner_lists-subline">{$lang->postpartner_own_headline}</div>
+        <div class="postpartner_own">
+            {$postpartner_own}
+            {$postpartner_own_none}    
+        </div>'),
+        'sid'        => '-2',
+        'version'    => '',
+        'dateline'    => TIME_NOW
+    );
+
+    if ($mode == "update") {
+
+        foreach ($templates as $template) {
+            $query = $db->simple_select("templates", "tid, template", "title = '".$template['title']."' AND sid = '-2'");
+            $existing_template = $db->fetch_array($query);
+
+            if($existing_template) {
+                if ($existing_template['template'] !== $template['template']) {
+                    $db->update_query("templates", array(
+                        'template' => $template['template'],
+                        'dateline' => TIME_NOW
+                    ), "tid = '".$existing_template['tid']."'");
+                }
+            }
+            else {
+                $db->insert_query("templates", $template);
+            }
+        }
+	
+    } else {
+        foreach ($templates as $template) {
+            $check = $db->num_rows($db->simple_select("templates", "title", "title = '".$template['title']."'"));
+            if ($check == 0) {
+                $db->insert_query("templates", $template);
+            }
+        }
+    }
+}
+
+// STYLESHEET MASTER
+function postpartner_stylesheet() {
+
+    global $db;
+    
+    $css = array(
+        'name' => 'postpartner.css',
+        'tid' => 1,
+        'attachedto' => '',
+        "stylesheet" => '#postpartner_lists {
+            width: 100%;
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        
+        .postpartner_lists-body {
+            width: 80%;
+            box-sizing: border-box;
+        }
+        
+        .postpartner_lists-headline {
+            background: #0066a2 url(../../../images/thead.png) top left repeat-x;
+            color: #ffffff;
+            border-bottom: 1px solid #263c30;
+            padding: 8px;
+            -moz-border-radius-topleft: 6px;
+            -moz-border-radius-topright: 6px;
+            -webkit-border-top-left-radius: 6px;
+            -webkit-border-top-right-radius: 6px;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+        
+        .postpartner_lists-subline {
+            background: #0f0f0f url(../../../images/tcat.png) repeat-x;
+            color: #fff;
+            border-top: 1px solid #444;
+            border-bottom: 1px solid #000;
+            padding: 6px;
+            font-size: 12px;
+        }
+        
+        .postpartner_lists-desc {
+            text-align: justify;
+            line-height: 180%;
+            padding: 20px 40px;
+        }
+        
+        .postpartner_add-headline {
+            background: #0f0f0f url(../../../images/tcat.png) repeat-x;
+            color: #fff;
+            border-top: 1px solid #444;
+            border-bottom: 1px solid #000;
+            padding: 6px;
+            font-size: 12px;
+        }
+        
+        .postpartner_add_table {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 10px;
+        }
+        
+        .postpartner_add_tableLeft {
+            width: 50%;
+        }
+        
+        .postpartner_add_tableRight {
+            width: 50%;
+        }
+        
+        .postpartner_add_tableCall {
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            flex-wrap: nowrap;
+            gap: 10px;
+            padding: 10px;
+        }
+        
+        .postpartner_add_tableCell {
+            width: 49%;
+            text-align: justify;
+        }
+        
+        .postpartner_own {
+            display: flex;
+            gap: 10px;
+            padding: 5px 0;
+            flex-wrap: wrap;
+        }
+        
+        .postpartner_own-bit {
+            width: 49.5%;
+        }
+        
+        .postpartner_own-name {
+            font-size: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .postpartner_own-count {
+            font-size: 12px;
+        }
+        
+        .postpartner_own-search {
+            text-align: justify;
+            height: 100px;
+            overflow: auto;
+            padding-right: 5px;
+            margin: 5px 0;
+        }
+        
+        .postpartner_own-options {
+            display: flex;
+            justify-content: space-around;
+        }
+        
+        .postpartner_search {
+            box-sizing: border-box;
+            padding: 10px;
+        }
+        
+        .postpartner_search-name {
+            background: #0f0f0f url(../../../images/tcat.png) repeat-x;
+            color: #fff;
+            border-top: 1px solid #444;
+            border-bottom: 1px solid #000;
+            padding: 6px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .postpartner_search-box {
+            display: flex;
+            margin: 10px 0;
+            gap: 10px;
+        }
+        
+        .postpartner_search-avatar {
+            width: 120px;
+        }
+        
+        .postpartner_search-avatar img {
+            width: 120px;
+        }
+        
+        .postpartner_search-infos {
+            width: 100%;
+        }
+        
+        .postpartner_search-postfacts {
+            border-bottom: 1px solid #000;
+            padding: 6px;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        
+        .postpartner_search-shortdesc {
+            text-align: justify;
+            max-height: 100px;
+            overflow: auto;
+            padding-right: 5px;
+        }
+        
+        .postpartner_search-options {
+            display: flex;
+            justify-content: space-around;
+        }
+        
+        .postpartner-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            margin-bottom: 10px;
+            align-content: flex-start;
+        }
+        
+        .postpartner-filter-headline {
+            width: 100%;
+            text-align: left;
+            box-sizing: border-box;
+            background: #0f0f0f url(../../../images/tcat.png) repeat-x;
+            color: #fff;
+            padding: 5px;
+        }
+        
+        .postpartner-filteroptions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: flex-start;
+        }
+        
+        .postpartner-dice {
+            margin-bottom: 20px;
+        }
+        
+        .postpartner-dice-headline {
+            width: 100%;
+            text-align: left;
+            box-sizing: border-box;
+            background: #0f0f0f url(../../../images/tcat.png) repeat-x;
+            color: #fff;
+            padding: 5px;
+        }
+        
+        .postpartner-dice-username {
+            text-align: center;
+            font-size: 25px;
+            margin: 5px 0 10px 0;
+        }
+        
+        .postpartner-dice-options {
+            display: flex;
+            justify-content: space-around;
+        }
+        
+        .postpartner_edit-headline {
+           background: #0f0f0f url(../../../images/tcat.png) repeat-x;
+           color: #fff;
+           border-top: 1px solid #444;
+           border-bottom: 1px solid #000;
+           padding: 6px;
+           font-size: 12px;
+        }
+        
+        .postpartner_edit_table {
+           display: flex;
+           gap: 10px;
+           justify-content: center;
+           align-items: flex-start;
+           padding: 10px;
+        }
+        
+        .postpartner_edit_tableLeft {
+           width: 50%;
+        }
+        
+        .postpartner_edit_tableRight {
+           width: 50%;
+        }
+        
+        .postpartner_edit_tableCall {
+           display: flex;
+           align-items: flex-start;
+           justify-content: flex-start;
+           flex-wrap: nowrap;
+           gap: 10px;
+           padding: 10px;
+        }
+        
+        .postpartner_edit_tableCell {
+           width: 49%;
+        }
+        
+        .postpartner_edit_character {
+            color: #333;
+            padding: 3px;
+            font-size: 13px;
+            font-family: Tahoma, Verdana, Arial, Sans-Serif;
+            margin-bottom: 5px;
+            width: 98%;
+        }
+        
+        .postpartner_alert {
+            background: #FFF6BF;
+            border: 1px solid #FFD324;
+            text-align: center;
+            padding: 5px 20px;
+            margin-bottom: 15px;
+            font-size: 11px;
+            -moz-border-radius: 6px;
+            -webkit-border-radius: 6px;
+            border-radius: 6px;
+        }
+        
+        .header_rejectRequest {
+            width: 600px;
+        }
+        
+        .header_rejectRequest textarea {
+            width: 100%;
+            height: 100px;
+        }
+        
+        .header_rejectRequest input {
+            margin-bottom: 10px;
+        }',
+        'cachefile' => $db->escape_string(str_replace('/', '', 'postpartner.css')),
+        'lastmodified' => time()
+    );
+
+    return $css;
+}
+
+// STYLESHEET UPDATE
+function postpartner_stylesheet_update() {
+
+    // Update-Stylesheet
+    // wird an bestehende Stylesheets immer ganz am ende hinzugefügt
+    $update = '';
+
+    // Definiere den  Überprüfung-String (muss spezifisch für die Überprüfung sein)
+    $update_string = '';
+
+    return array(
+        'stylesheet' => $update,
+        'update_string' => $update_string
+    );
+}
+
+// UPDATE CHECK
+function postpartner_is_updated(){
+
+    global $db, $mybb;
+  
+	if($db->table_exists("postpartners"))  {
+		return true;
+	}
+	return false;
 }
