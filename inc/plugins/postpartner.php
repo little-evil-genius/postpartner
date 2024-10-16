@@ -1766,6 +1766,35 @@ function postpartner_settings($type = 'install') {
             $setting['gid'] = $gid;
             if ($check == 0) { // nicht vorhanden, hinzufügen
               $db->insert_query('settings', $setting);
+            } else { // vorhanden, auf Änderungen überprüfen
+                
+                $current_setting = $db->fetch_array($db->write_query("SELECT title, description, optionscode, disporder FROM ".TABLE_PREFIX."settings 
+                WHERE name = '".$db->escape_string($name)."'
+                "));
+            
+                $update_needed = false;
+                $update_data = array();
+            
+                if ($current_setting['title'] != $setting['title']) {
+                    $update_data['title'] = $setting['title'];
+                    $update_needed = true;
+                }
+                if ($current_setting['description'] != $setting['description']) {
+                    $update_data['description'] = $setting['description'];
+                    $update_needed = true;
+                }
+                if ($current_setting['optionscode'] != $setting['optionscode']) {
+                    $update_data['optionscode'] = $setting['optionscode'];
+                    $update_needed = true;
+                }
+                if ($current_setting['disporder'] != $setting['disporder']) {
+                    $update_data['disporder'] = $setting['disporder'];
+                    $update_needed = true;
+                }
+            
+                if ($update_needed) {
+                    $db->update_query('settings', $update_data, "name = '".$db->escape_string($name)."'");
+                }
             }
         }
 
