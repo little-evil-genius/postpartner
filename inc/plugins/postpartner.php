@@ -1862,7 +1862,7 @@ function postpartner_templates($mode = '') {
                    <span class="smalltext">{$lang->postpartner_add_character_desc}</span>
                 </div>
                 <div class="postpartner_add_tableCell">
-                   <select name="character">
+                   <select name="character" required>
                       <option value="">{$lang->postpartner_add_character_select}</option>
                       {$accounts_select}
                    </select>
